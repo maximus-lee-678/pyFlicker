@@ -19,8 +19,6 @@ def get_even_plan(values_count, concurrency_target, maximum_tasks_per_query) -> 
     :return: list[int]
     """
 
-    global logger
-
     if values_count <= 0:
         logger.warning("No values to process.")
         return []

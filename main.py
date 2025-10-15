@@ -21,14 +21,6 @@ def main():
     time_start = datetime.now()
     script_name = Path(__file__).name
 
-    # set up the logger
-    try:
-        global logger
-        logger = pyflicker_logger_utils.setup_logger(script_name)
-    except Exception as e:
-        sys.stderr.write(f"Error starting logger: {e}\n")
-        raise RuntimeError(f"Error starting logger: {e}")
-
     logger.info("pyflicker is preparing to strike!")
 
     PATH_LOAD_FILES.mkdir(parents=True, exist_ok=True)
