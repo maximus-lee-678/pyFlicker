@@ -1,0 +1,11 @@
+{
+    "db_hostname": "",
+    "db_username": "",
+    "db_password": "",
+    "db_schema_name": "",
+    "db_port": 3306,
+    "db_ssl": null,
+    "db_lock_wait_timeout": 10,
+    "load_concurrency": 15,
+    "load_batch_size": 10000
+}
