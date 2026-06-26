@@ -61,7 +61,8 @@ def main():
             # currently formatted like ("value_1","value_2",boolean_1,boolean_2,...)
             for line in f:
                 if not header_read:
-                    columns_list = [col.strip() for col in line.strip().split(",")]
+                    # currently formatted like (col1,col2,col3,...)
+                    columns_list = [col.strip().lower() for col in line.strip("()").split(",")]
                     header_read = True
                 else:
                     values_list.append(line.strip())
