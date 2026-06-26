@@ -1,11 +1,39 @@
 {
-    "db_hostname": "",
-    "db_username": "",
-    "db_password": "",
-    "db_schema_name": "",
-    "db_port": 3306,
-    "db_ssl": null,
-    "db_lock_wait_timeout": 10,
-    "load_concurrency": 15,
-    "load_batch_size": 10000
+    "mysql_password": {
+        "db_type": "MYSQL",
+        "auth_type": "PASSWORD",
+        "auth_details": {
+            "db_hostname": "",
+            "db_username": "",
+            "db_password": "",
+            "db_schema": "",
+            "db_port": 3306,
+            "db_ssl": null
+        },
+        "maximum_threads": 15,
+        "maximum_rows_per_thread": 10000
+    },
+    "mysql_iam": {
+        "db_type": "MYSQL",
+        "auth_type": "IAM",
+        "auth_details": {
+            "db_hostname": "",
+            "db_username": "",
+            "db_schema": "",
+            "db_port": 3306,
+            "db_ssl": null
+        },
+        "maximum_threads": 15,
+        "maximum_rows_per_thread": 10000
+    },
+    "mysql_glue_connector": {
+        "db_type": "MYSQL",
+        "auth_type": "GLUE_CONN",
+        "auth_details": {
+            "glue_connector_name": "",
+            "db_ssl": null
+        },
+        "maximum_threads": 15,
+        "maximum_rows_per_thread": 10000
+    }
 }
