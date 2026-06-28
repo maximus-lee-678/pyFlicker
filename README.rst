@@ -1,103 +1,59 @@
 pyflicker 🧨
 ============
-| It's like pyspark, but not in the slightest!
+| It's like pyspark, but not at all!
 |
-| Supports multithreaded upserts to a MySQL database from textual data files.
-| Writes load progress to logs located at the 'logs' directory.
-| Absolutely ZERO types of transformation support.
-|
-| Requires pymysql library.
+| Supports multithreaded **upserts** to different databases.
+| Provides methods to easily parse CSV data.
+1. MySQL (requires pymysql)
+2. PostgreSQL* [coming soon-ish!] (requires psycopg3)
 
-Data File Preparation
----------------------
-Data files' contents should follow a specific format.
-
-Header
-~~~~~~
-- Outer brackets are required.
-
-.. code-block:: text
-
-  (col_1,col_2,col_3,col_4,...)
-
-Rows
-~~~~
-- Outer brackets are required.
-- Values should be enclosed by single quotes.
-- Booleans should NOT be enclosed by any quotes.
-- *This is why this job doesn't just accept a plain CSV...*
-
-.. code-block:: text
-
-  ('value_1','value_2',boolean_1,boolean_2,...)
+Certified 0% data transformation support!
 
 Usage Instructions
 ------------------
-1. Name your datafiles after the convention <table_name>.txt.
-2. Place them in the 'to_load' directory.
-3. If you haven't already, make a copy of cfg.json.example > cfg.json.
-4. Edit the copy and fill in all fields.
-5. Run main.py.
-6. Enjoy the fireworks.
-7. Any errors during the process will be logged with levelname **ERROR**.
+See example.py for an example of the library in action.
 
-cfg.json
+1. Make a copy of cfg.json.example named cfg.json.
+2. Pick a connection method to use, then edit the copy and fill in all fields.
+3. In your program, call pyflicker.setup_logger() if you want better logging.
+4. Pass column_names and values_list to pyflicker.PyFlickerRun<db>(). This library has native support for CSV through parse_csv_<db>().
+5. Pass configuration file data prepared by pyflicker.PyFlickerLoadConfig<db>() to the set_user_supplied_db_details() method on the created object to load configuration information in.
+6. Run the start_multithreaded_upsert() method on the created object to light the fuse!
+
+End-user Functions/Classes
+--------------------------
+- setup_logger()
+
+  - Set up custom logging.
+
+- parse_csv_mysql() / parse_csv_postgres()
+
+  - Read a CSV file and return outputs appropriate for use by the PyFlickerRun* classes.
+
+- escape_mysql() / escape_postgres()
+
+  - Escape a string for safe insertion into a database.
+  - Outputs of this function are intended for use in SQL upsert statements in the VALUES block.
+  - For when you want to handle data not from a CSV, these functions can be used to apply the same string formatting logic to any string.
+
+- PyFlickerLoadConfigMySQL / PyFlickerLoadConfigPostgres [coming soon-ish!]
+
+  - Processes configuration file to get input parameters for database connection.
+  - Produces output suitable for use by...
+
+- PyFlickerRunMySQL / PyFlickerRunPostgres [coming soon-ish!]
+
+  - This class!
+  - Runs multithreaded upserts into a database.
+
+StrEnums
 --------
-- **db_hostname**
-
-  - Type: string
-  - MySQL database endpoint.
-
-- **db_username**
-
-  - Type: string
-  - MySQL username.
-
-- **db_password**
-
-  - Type: string
-  - MySQL password.
-
-- **db_schema_name**
-
-  - Type: string
-  - MySQL schema.
-
-- **db_port**
-
-  - Type: int
-  - MySQL port.
-  - Default: 3306
-
-- **db_ssl**
-
-  - Type: string OR null
-  - SSL certificate path.
-  - Can be specified as null directory if not using SSL.
-  - Default: null
-
-- **db_lock_wait_timeout**
-
-  - Type: int
-  - Timeout for connecting to the database in seconds.
-  - Default 10.
-
-- **load_concurrency**
-
-  - Type: int
-  - Maximum number of active connections to MySQL database.
-  - Default 15.
-
-- **load_batch_size**
-
-  - Type: int
-  - Maximum rows inserted per connection.
-  - Default 10000.
+- PyFlickerSupportedDBTypes: What databases this library supports.
+- PyFlickerDBConnectionTypeMySQL: Supported connection types for MySQL.
+- PyFlickerDBConnectionTypePostgres: Coming soon-ish!
 
 Notes
 -----
 - This script runs upserts. Any primary keys already present in the table will be overwritten.
+- Only use data you can trust. This library does not use query parameterisation for values to speed up the process.
 - Duplicate data in datafiles is considered undefined behaviour.
-
-  - The script may overwrite some data.
-  - The database might deadlock.
