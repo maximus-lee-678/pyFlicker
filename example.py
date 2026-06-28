@@ -36,7 +36,7 @@ def main():
         logger.error(str_error)
         raise FileNotFoundError(str_error)
 
-    cfg = {}
+    cfg: dict[str, Any] = {}
     with open(PATH_CFG, "r") as cfg_file:
         cfg = json.load(cfg_file)
 
@@ -72,8 +72,7 @@ def main():
                         maximum_rows_per_thread=cfg["maximum_rows_per_thread"]
                     )
                     db_runner.set_user_supplied_db_details(
-                        pyflicker.PyFlickerDBConnectionTypeMySQL(cfg["auth_type"]),
-                        pyflicker.PyFlickerLoadConfigMySQL(cfg).get_user_supplied_db_details()
+                        cfg["auth_type"], pyflicker.PyFlickerLoadConfigMySQL(cfg).get_user_supplied_db_details()
                     )
                     result = db_runner.start_multithreaded_upsert()
 

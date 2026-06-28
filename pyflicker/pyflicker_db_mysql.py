@@ -224,7 +224,7 @@ class PyFlickerRunMySQL(PyFlickerRunBase):
         |
         | Note that the 'rows_affected' key value may not be fully representative of data change in the database.
         | Particularly:
-        - If a row is updated with the same values as already exist in the database, it will not be counted as a row affected.
+        - If a row is updated with the same values as already existing in the database, it will not be counted towards rows affected.
         - If a row is updated with different values, it will be counted as 2 rows affected.
         - If a row is inserted, it will be counted as 1 row affected.
 
