@@ -31,24 +31,25 @@ class PyFlickerLoadConfigBase(ABC):
 
     @abstractmethod
     def _load_type(self) -> None:
-        raise NotImplementedError("Subclasses must implement this!")
+        pass
 
     @abstractmethod
     def _produce_user_supplied_db_details(self) -> None:
-        raise NotImplementedError("Subclasses must implement this!")
+        pass
 
 
 class PyFlickerDBUserSuppliedDetailsBase(ABC):
     @abstractmethod
     def __init__(self):
-        raise NotImplementedError("Subclasses must implement this!")
+        pass
 
 
 class PyFlickerRunBase(ABC):
     table_name: str
-    # strings formatted like ["('value_1','value_2',boolean_1,boolean_2,...)" ...] perhaps this could be changed in the future...
-    values_list: list[str]
+    columns_list: list[str]
+    values_list: list[str]  # strings formatted like ["('value_1','value_2',...)"]. e.g. output of parse_csv_*
     maximum_threads: int
+    maximum_rows_per_thread: int
 
     def __init__(
         self, table_name: str, columns_list: list[str], values_list: list[str], maximum_threads: int, maximum_rows_per_thread: int
@@ -61,23 +62,23 @@ class PyFlickerRunBase(ABC):
 
     @abstractmethod
     def set_user_supplied_db_details(self, type: Any, user_supplied_db_details: Any):
-        raise NotImplementedError("Subclasses must implement this!")
+        pass
 
     @abstractmethod
     def start_multithreaded_insert(self) -> dict[str, Any]:
-        raise NotImplementedError("Subclasses must implement this!")
+        pass
 
     @abstractmethod
     def _instantiate_conn_details(self) -> Any:
-        raise NotImplementedError("Subclasses must implement this!")
+        pass
 
     @abstractmethod
     def _get_column_names(self, conn: Any) -> list[str]:
-        raise NotImplementedError("Subclasses must implement this!")
+        pass
 
     @abstractmethod
     def _get_primary_keys(self, conn: Any) -> list[str]:
-        raise NotImplementedError("Subclasses must implement this!")
+        pass
 
     def _verify_columns_match(self, db_columns: list[str], file_columns: list[str]) -> bool:
         return len(db_columns) == len(file_columns) and set(db_columns) == set(file_columns)
@@ -87,7 +88,7 @@ class PyFlickerConnectionBase(ABC):
     @staticmethod
     @abstractmethod
     def get_conn_object(conn_details: dict[str, Any]) -> Any:
-        raise NotImplementedError("Subclasses must implement this!")
+        pass
 
 
 class PyFlickerMultithreaderBase(ABC):
@@ -134,7 +135,7 @@ class PyFlickerMultithreaderBase(ABC):
 
     @abstractmethod
     def _execute_thread(self, thread_id: int, query: str) -> None:
-        raise NotImplementedError("Subclasses must implement this!")
+        pass
 
     def run(self) -> dict[str, Any]:
         threads_created = 0

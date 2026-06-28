@@ -9,6 +9,7 @@ import json
 
 PATH_CFG = Path("cfg.json")
 PATH_LOAD_FILES = Path("./to_load")
+PATH_LOGS = Path("./logs")
 
 # force working directory to script's location
 os.chdir(Path(__file__).parent)
@@ -18,7 +19,7 @@ logger = logging.getLogger(__name__)
 
 
 def main():
-    pyflicker.setup_logger(Path("logs"))
+    pyflicker.setup_logger(PATH_LOGS)
 
     time_start = datetime.now()
     script_name = Path(__file__).name
@@ -40,36 +41,25 @@ def main():
         logger.error(str_error)
         raise ValueError(str_error)
 
-    txt_files = list(PATH_LOAD_FILES.glob("*.txt"))
-    if len(txt_files) == 0:
-        str_error = f"No .txt files found in {PATH_LOAD_FILES}. Please add files to load."
+    csv_files = list(PATH_LOAD_FILES.glob("*.csv"))
+    if len(csv_files) == 0:
+        str_error = f"No .csv files found in {PATH_LOAD_FILES}. Please add files to load."
         logger.error(str_error)
         raise FileNotFoundError(str_error)
 
     successes = 0
-    for txt_file in txt_files:
-        logger.info(f"Processing file: {txt_file}")
+    for csv_file in csv_files:
+        logger.info(f"Processing file: {csv_file}")
 
-        table_name = txt_file.stem
-        header_read = False
-        columns_list = []
-        values_list = []
-        with open(txt_file, "r") as f:
-            # currently formatted like ("value_1","value_2",boolean_1,boolean_2,...)
-            for line in f:
-                if not header_read:
-                    # currently formatted like (col1,col2,col3,...)
-                    columns_list = [col.strip().lower() for col in line.strip("\n()").split(",")]
-                    logger.info(f"Columns for table {table_name}: {columns_list}")
-                    header_read = True
-                else:
-                    values_list.append(line.strip())
-
+        table_name = csv_file.stem
+        columns_list: list[str]
+        values_list: list[str]
         result: dict[str, Any] = {}
         try:
             match cfg["db_type"]:
                 case pyflicker.PyFlickerSupportedDBTypes.MYSQL:
-                    user_supplied_db_details = pyflicker.PyFlickerLoadConfigMySQL(cfg).get_user_supplied_db_details()
+                    columns_list, values_list = pyflicker.parse_csv_mysql(csv_file)
+
                     db_runner = pyflicker.PyFlickerRunMySQL(
                         table_name=table_name,
                         columns_list=columns_list,
@@ -79,7 +69,7 @@ def main():
                     )
                     db_runner.set_user_supplied_db_details(
                         pyflicker.PyFlickerDBConnectionType(cfg["auth_type"]),
-                        user_supplied_db_details
+                        pyflicker.PyFlickerLoadConfigMySQL(cfg).get_user_supplied_db_details()
                     )
                     result = db_runner.start_multithreaded_insert()
 
@@ -91,16 +81,16 @@ def main():
 Supported types: {list(pyflicker.PyFlickerSupportedDBTypes)}""")
 
         except Exception as e:
-            logger.error(f"Error processing file {txt_file}: {e}")
+            logger.error(f"Error processing file {csv_file}: {e}")
 
         transaction_successful = result.get("transaction_successful", False)
         if transaction_successful:
             successes += 1
-        logger.info(f"Result for file {txt_file}: {result}")
+        logger.info(f"Result for file {csv_file}: {result}")
 
     time_end = datetime.now()
     logger.info(f"Script {script_name} completed. Start time: {time_start}, End time: {time_end}, Duration: {time_end - time_start}")
-    logger.info(f"Processed {successes}/{len(txt_files)} files successfully.")
+    logger.info(f"Processed {successes}/{len(csv_files)} files successfully.")
     logger.info("Finished all tasks.")
 
 

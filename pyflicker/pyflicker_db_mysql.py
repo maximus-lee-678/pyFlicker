@@ -162,6 +162,7 @@ class PyFlickerRunMySQL(PyFlickerRunBase):
 
     def start_multithreaded_insert(self) -> dict[str, Any]:
         logger.info(f"Starting multithreaded insert into table {self.table_name} with {len(self.values_list)} rows.")
+        logger.info(f"Maximum threads: {self.maximum_threads}, Maximum rows per thread: {self.maximum_rows_per_thread}.")
 
         self._instantiate_conn_details()
         conn = PyFlickerConnectionMySQL.get_conn_object(self.conn_details)
@@ -330,7 +331,7 @@ class PyFlickerConnectionMySQL(PyFlickerConnectionBase):
     @staticmethod
     def get_conn_details_iam(hostname: str, username: str, schema: str, port: int, ssl: Union[str, None] = None) -> dict:
         """
-        | Generates MySQL database schema value and secure login details with ssl and authentication token.
+        | Generates MySQL database schema value and secure login details with ssl and AWS authentication token.
         | SSL certificate file location defaults to the working directory, but can be overridden by specifying ssl.
         |
         | 'ssl' key is only included in the return dictionary if ssl is specified.
@@ -377,7 +378,7 @@ class PyFlickerConnectionMySQL(PyFlickerConnectionBase):
     @staticmethod
     def get_conn_details_glue_conn(glue_connector_name: str, ssl: Union[str, None] = None) -> dict:
         """
-        | Retrieves MySQL database login details from the specified glue connector.
+        | Retrieves MySQL database login details from the specified AWS Glue connector.
         | SSL certificate file location defaults to the working directory, but can be overridden by specifying ssl.
         | Schema name is also defined in the Glue Connector itself, but can be overridden by specifying override_schema_name.
         |

@@ -11,7 +11,7 @@
             "db_ssl": null
         },
         "maximum_threads": 15,
-        "maximum_rows_per_thread": 10000
+        "maximum_rows_per_thread": 20000
     },
     "mysql_iam": {
         "db_type": "MYSQL",
@@ -24,7 +24,7 @@
             "db_ssl": null
         },
         "maximum_threads": 15,
-        "maximum_rows_per_thread": 10000
+        "maximum_rows_per_thread": 20000
     },
     "mysql_glue_connector": {
         "db_type": "MYSQL",
@@ -34,6 +34,6 @@
             "db_ssl": null
         },
         "maximum_threads": 15,
-        "maximum_rows_per_thread": 10000
+        "maximum_rows_per_thread": 20000
     }
 }
