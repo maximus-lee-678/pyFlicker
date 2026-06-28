@@ -1,23 +1,31 @@
-from pyflicker.pyflicker_db_base import PyFlickerConnectionBase, PyFlickerLoadConfigBase, PyFlickerMultithreaderBase, PyFlickerRunBase, PyFlickerDBUserSuppliedDetailsBase
+from pyflicker.pyflicker_db_base import PyFlickerDBUserSuppliedDetailsBase, PyFlickerLoadConfigBase, PyFlickerRunBase, PyFlickerConnectionBase, PyFlickerMultithreaderBase
 import pyflicker.pyflicker_distribute as pyflicker_distribute
 import logging
 from pathlib import Path
 from enum import StrEnum
-from typing import Any, Union
+from typing import Any, ClassVar, Union
 import json
 import pymysql
 
 
 logger = logging.getLogger("pyflicker.mysql")
 
+MYSQL_DEFAULT_PORT = 3306
+DB_CONNECTION_TIMEOUT = 10  # in seconds
+DB_LOCK_WAIT_TIMEOUT = 60  # in seconds
 
-class PyFlickerDBConnectionType(StrEnum):
+
+class PyFlickerDBConnectionTypeMySQL(StrEnum):
     PASSWORD = "PASSWORD"
     IAM = "IAM"
     GLUE_CONN = "GLUE_CONN"
 
 
 class PyFlickerUserSuppliedDBDetailsMySQLPassword(PyFlickerDBUserSuppliedDetailsBase):
+    """
+    MySQL connection details for password-based authentication.
+    """
+
     hostname: str
     username: str
     password: str
@@ -25,7 +33,20 @@ class PyFlickerUserSuppliedDBDetailsMySQLPassword(PyFlickerDBUserSuppliedDetails
     port: int
     ssl: Union[str, None]
 
-    def __init__(self, hostname: str, username: str, password: str, schema: str, port: int, ssl: Union[str, None] = None):
+    def __init__(
+        self, hostname: str, username: str, password: str, schema: str, port: int = MYSQL_DEFAULT_PORT, ssl: Union[str, None] = None
+    ) -> None:
+        """
+        :param hostname: MySQL server URI.
+        :param username: connecting username.
+        :param password: username's password.
+        :param schema: schema to use.
+        :param port: the port number to connect to. defaults to MySQL default if not specified.
+        :param ssl: optional path to SSL certificate file. leave as None if not using SSL.
+
+        :return: None
+        """
+
         self.hostname = hostname
         self.username = username
         self.password = password
@@ -35,13 +56,29 @@ class PyFlickerUserSuppliedDBDetailsMySQLPassword(PyFlickerDBUserSuppliedDetails
 
 
 class PyFlickerUserSuppliedDBDetailsMySQLIAM(PyFlickerDBUserSuppliedDetailsBase):
+    """
+    MySQL connection details for AWS IAM-based authentication.
+    """
+
     hostname: str
     username: str
     schema: str
     port: int
     ssl: Union[str, None]
 
-    def __init__(self, hostname: str, username: str, schema: str, port: int, ssl: Union[str, None] = None):
+    def __init__(
+        self, hostname: str, username: str, schema: str, port: int = MYSQL_DEFAULT_PORT, ssl: Union[str, None] = None
+    ) -> None:
+        """
+        :param hostname: MySQL server URI.
+        :param username: connecting username.
+        :param schema: schema to use.
+        :param port: the port number to connect to. defaults to MySQL default if not specified.
+        :param ssl: optional path to SSL certificate file. leave as None if not using SSL.
+
+        :return: None
+        """
+
         self.hostname = hostname
         self.username = username
         self.schema = schema
@@ -50,50 +87,63 @@ class PyFlickerUserSuppliedDBDetailsMySQLIAM(PyFlickerDBUserSuppliedDetailsBase)
 
 
 class PyFlickerUserSuppliedDBDetailsMySQLGlueConn(PyFlickerDBUserSuppliedDetailsBase):
+    """
+    MySQL connection details for AWS Glue Connector-based authentication.
+    """
+
     glue_connector_name: str
     ssl: Union[str, None]
 
-    def __init__(self, glue_connector_name: str, ssl: Union[str, None] = None):
+    def __init__(self, glue_connector_name: str, ssl: Union[str, None] = None) -> None:
+        """
+        :param glue_connector_name: name of AWS glue connector resource to retrieve connection details from.
+        :param ssl: optional path to SSL certificate file. leave as None if not using SSL.
+
+        :return: None
+        """
+
         self.glue_connector_name = glue_connector_name
         self.ssl = ssl
 
 
 class PyFlickerLoadConfigMySQL(PyFlickerLoadConfigBase):
+    """
+    | Processes configuration file to get input parameters for MySQL database connection (user_supplied_db_details).
+    | Call get_user_supplied_db_details() to retrieve the user_supplied_db_details object.
+    """
+
     cfg: dict[str, Any]
-    db_connection_type: PyFlickerDBConnectionType
+    db_connection_type: PyFlickerDBConnectionTypeMySQL
     user_supplied_db_details: Union[
         PyFlickerUserSuppliedDBDetailsMySQLPassword,
         PyFlickerUserSuppliedDBDetailsMySQLIAM,
         PyFlickerUserSuppliedDBDetailsMySQLGlueConn
     ]
 
-    def __init__(self, cfg: dict[str, Any]):
-        super().__init__(cfg)
-
     def get_user_supplied_db_details(self) -> Union[
         PyFlickerUserSuppliedDBDetailsMySQLPassword,
         PyFlickerUserSuppliedDBDetailsMySQLIAM,
         PyFlickerUserSuppliedDBDetailsMySQLGlueConn
     ]:
-        return self.user_supplied_db_details
+        return super().get_user_supplied_db_details()
 
     def _load_type(self) -> None:
         if "auth_type" not in self.cfg:
             raise ValueError("Missing auth_type in configuration file.")
 
         match self.cfg["auth_type"]:
-            case PyFlickerDBConnectionType.PASSWORD:
-                self.db_connection_type = PyFlickerDBConnectionType.PASSWORD
-            case PyFlickerDBConnectionType.IAM:
-                self.db_connection_type = PyFlickerDBConnectionType.IAM
-            case PyFlickerDBConnectionType.GLUE_CONN:
-                self.db_connection_type = PyFlickerDBConnectionType.GLUE_CONN
+            case PyFlickerDBConnectionTypeMySQL.PASSWORD:
+                self.db_connection_type = PyFlickerDBConnectionTypeMySQL.PASSWORD
+            case PyFlickerDBConnectionTypeMySQL.IAM:
+                self.db_connection_type = PyFlickerDBConnectionTypeMySQL.IAM
+            case PyFlickerDBConnectionTypeMySQL.GLUE_CONN:
+                self.db_connection_type = PyFlickerDBConnectionTypeMySQL.GLUE_CONN
             case _:
                 raise ValueError(f"""Invalid auth_type: {self.cfg["auth_type"]}. \
-Supported types: {list(PyFlickerDBConnectionType)}""")
+Supported types: {list(PyFlickerDBConnectionTypeMySQL)}""")
 
     def _produce_user_supplied_db_details(self) -> None:
-        if self.db_connection_type == PyFlickerDBConnectionType.PASSWORD:
+        if self.db_connection_type == PyFlickerDBConnectionTypeMySQL.PASSWORD:
             self.user_supplied_db_details = PyFlickerUserSuppliedDBDetailsMySQLPassword(
                 hostname=self.cfg["auth_details"]["db_hostname"],
                 username=self.cfg["auth_details"]["db_username"],
@@ -102,7 +152,7 @@ Supported types: {list(PyFlickerDBConnectionType)}""")
                 port=self.cfg["auth_details"]["db_port"],
                 ssl=self.cfg.get("auth_details", {}).get("db_ssl", None)
             )
-        elif self.db_connection_type == PyFlickerDBConnectionType.IAM:
+        elif self.db_connection_type == PyFlickerDBConnectionTypeMySQL.IAM:
             self.user_supplied_db_details = PyFlickerUserSuppliedDBDetailsMySQLIAM(
                 hostname=self.cfg["auth_details"]["db_hostname"],
                 username=self.cfg["auth_details"]["db_username"],
@@ -110,58 +160,78 @@ Supported types: {list(PyFlickerDBConnectionType)}""")
                 port=self.cfg["auth_details"]["db_port"],
                 ssl=self.cfg.get("auth_details", {}).get("db_ssl", None)
             )
-        elif self.db_connection_type == PyFlickerDBConnectionType.GLUE_CONN:
+        elif self.db_connection_type == PyFlickerDBConnectionTypeMySQL.GLUE_CONN:
             self.user_supplied_db_details = PyFlickerUserSuppliedDBDetailsMySQLGlueConn(
                 glue_connector_name=self.cfg["auth_details"]["glue_connector_name"],
                 ssl=self.cfg.get("auth_details", {}).get("db_ssl", None)
             )
         else:
             raise ValueError(f"Invalid auth_type: {self.db_connection_type}. \
-Supported types: {list(PyFlickerDBConnectionType)}")
+Supported types: {list(PyFlickerDBConnectionTypeMySQL)}")
 
 
 class PyFlickerRunMySQL(PyFlickerRunBase):
-    BASE_QUERY = "INSERT INTO {table_name} ({final_cols_string}) VALUES {values_strings} ON DUPLICATE KEY UPDATE {update_keys};"
+    """
+    | 'Tonight, a tale of true terror.'
+    | 
+    | Runs multithreaded upserts into a MySQL database.
+    """
 
-    user_supplied_db_details: Union[
-        PyFlickerUserSuppliedDBDetailsMySQLPassword,
-        PyFlickerUserSuppliedDBDetailsMySQLIAM,
-        PyFlickerUserSuppliedDBDetailsMySQLGlueConn,
-        None
-    ]
-    db_connection_type: Union[PyFlickerDBConnectionType, None]
-    conn_details: dict[str, Any]
+    base_query: ClassVar[str] = "INSERT INTO {table_name} ({final_cols_string}) VALUES {values_strings} ON DUPLICATE KEY UPDATE {update_keys};"
 
     def __init__(
         self, table_name: str, columns_list: list[str], values_list: list[str], maximum_threads: int, maximum_rows_per_thread: int
-    ):
+    ) -> None:
         super().__init__(table_name, columns_list, values_list, maximum_threads, maximum_rows_per_thread)
 
-        self.user_supplied_db_details = None
-        self.db_connection_type = None
+        self.user_supplied_db_details: Union[
+            PyFlickerUserSuppliedDBDetailsMySQLPassword,
+            PyFlickerUserSuppliedDBDetailsMySQLIAM,
+            PyFlickerUserSuppliedDBDetailsMySQLGlueConn,
+            None
+        ] = None
+        self.db_connection_type: Union[PyFlickerDBConnectionTypeMySQL, None] = None
+        self.conn_details: dict[str, Any] = {}
 
     def set_user_supplied_db_details(
-        self, type: PyFlickerDBConnectionType, user_supplied_db_details: Union[
+        self, type: PyFlickerDBConnectionTypeMySQL, user_supplied_db_details: Union[
             PyFlickerUserSuppliedDBDetailsMySQLPassword,
             PyFlickerUserSuppliedDBDetailsMySQLIAM,
             PyFlickerUserSuppliedDBDetailsMySQLGlueConn
         ]
     ) -> None:
         self.db_connection_type = type
-        if type == PyFlickerDBConnectionType.PASSWORD and \
+        if type == PyFlickerDBConnectionTypeMySQL.PASSWORD and \
                 isinstance(user_supplied_db_details, PyFlickerUserSuppliedDBDetailsMySQLPassword):
             self.user_supplied_db_details = user_supplied_db_details
-        elif type == PyFlickerDBConnectionType.IAM and \
+        elif type == PyFlickerDBConnectionTypeMySQL.IAM and \
                 isinstance(user_supplied_db_details, PyFlickerUserSuppliedDBDetailsMySQLIAM):
             self.user_supplied_db_details = user_supplied_db_details
-        elif type == PyFlickerDBConnectionType.GLUE_CONN and \
+        elif type == PyFlickerDBConnectionTypeMySQL.GLUE_CONN and \
                 isinstance(user_supplied_db_details, PyFlickerUserSuppliedDBDetailsMySQLGlueConn):
             self.user_supplied_db_details = user_supplied_db_details
         else:
             raise ValueError("Invalid user supplied db details for the specified connection type.")
 
-    def start_multithreaded_insert(self) -> dict[str, Any]:
-        logger.info(f"Starting multithreaded insert into table {self.table_name} with {len(self.values_list)} rows.")
+    def start_multithreaded_upsert(self) -> dict[str, Any]:
+        """
+        | 'On with the show!'
+        | 
+        | Start actual multithreaded upsert into the database.
+        | This method should be called after set_user_supplied_db_details() has been called, or RuntimeError will be raised.
+        | As this class calls the multithreader, logs will be produced for each thread. 
+        | If the logger has been properly configured, these logs will be written to the console and/or a log file.
+        |
+        | Note that the 'rows_affected' key value may not be fully representative of data change in the database.
+        | Particularly:
+        - If a row is updated with the same values as already exist in the database, it will not be counted as a row affected.
+        - If a row is updated with different values, it will be counted as 2 rows affected.
+        - If a row is inserted, it will be counted as 1 row affected.
+
+        :return: dict with keys "transaction_successful" (bool) and "rows_affected" (int)
+        """
+
+        logger.info(f"Starting multithreaded upsert into table {self.table_name} with {len(self.values_list)} rows.")
         logger.info(f"Maximum threads: {self.maximum_threads}, Maximum rows per thread: {self.maximum_rows_per_thread}.")
 
         self._instantiate_conn_details()
@@ -176,7 +246,7 @@ class PyFlickerRunMySQL(PyFlickerRunBase):
             logger.error(err_msg)
             raise ValueError(err_msg)
 
-        formatted_query = self.BASE_QUERY.format(
+        formatted_query = self.base_query.format(
             table_name=self.table_name,
             final_cols_string=",".join(self.columns_list),  # use the file column ordering
             values_strings="{values_strings}",
@@ -191,14 +261,13 @@ class PyFlickerRunMySQL(PyFlickerRunBase):
         multi_threader = PyFlickerMultithreaderMySQL(
             maximum_threads=self.maximum_threads,
             conn_details=self.conn_details,
-            conn_type=self.db_connection_type,
-            queries=queries,
-            task=None
+            db_connection_type=self.db_connection_type,
+            queries=queries
         )
         return multi_threader.run()
 
     def _instantiate_conn_details(self) -> None:
-        if self.db_connection_type == PyFlickerDBConnectionType.PASSWORD and \
+        if self.db_connection_type == PyFlickerDBConnectionTypeMySQL.PASSWORD and \
                 isinstance(self.user_supplied_db_details, PyFlickerUserSuppliedDBDetailsMySQLPassword):
             self.conn_details = PyFlickerConnectionMySQL.get_conn_details_password(
                 hostname=self.user_supplied_db_details.hostname,
@@ -208,7 +277,7 @@ class PyFlickerRunMySQL(PyFlickerRunBase):
                 port=self.user_supplied_db_details.port,
                 ssl=self.user_supplied_db_details.ssl
             )
-        elif self.db_connection_type == PyFlickerDBConnectionType.IAM and \
+        elif self.db_connection_type == PyFlickerDBConnectionTypeMySQL.IAM and \
                 isinstance(self.user_supplied_db_details, PyFlickerUserSuppliedDBDetailsMySQLIAM):
             self.conn_details = PyFlickerConnectionMySQL.get_conn_details_iam(
                 hostname=self.user_supplied_db_details.hostname,
@@ -217,14 +286,14 @@ class PyFlickerRunMySQL(PyFlickerRunBase):
                 port=self.user_supplied_db_details.port,
                 ssl=self.user_supplied_db_details.ssl
             )
-        elif self.db_connection_type == PyFlickerDBConnectionType.GLUE_CONN and \
+        elif self.db_connection_type == PyFlickerDBConnectionTypeMySQL.GLUE_CONN and \
                 isinstance(self.user_supplied_db_details, PyFlickerUserSuppliedDBDetailsMySQLGlueConn):
             self.conn_details = PyFlickerConnectionMySQL.get_conn_details_glue_conn(
                 glue_connector_name=self.user_supplied_db_details.glue_connector_name,
                 ssl=self.user_supplied_db_details.ssl
             )
         else:
-            raise ValueError("Invalid user supplied db details for the specified connection type.")
+            raise RuntimeError("Invalid user supplied db details for the specified connection type.")
 
     def _get_column_names(self, conn: pymysql.connections.Connection) -> list[str]:
         query = f"""SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE \
@@ -285,8 +354,6 @@ TABLE_SCHEMA='{self.conn_details["schema"]}' AND TABLE_NAME='{self.table_name}'"
 
 
 class PyFlickerConnectionMySQL(PyFlickerConnectionBase):
-    DB_LOCK_WAIT_TIMEOUT = 900  # in seconds
-
     @staticmethod
     def get_conn_details_password(
         hostname: str, username: str, password: str, schema: str, port: int, ssl: Union[str, None] = None
@@ -335,6 +402,8 @@ class PyFlickerConnectionMySQL(PyFlickerConnectionBase):
         | SSL certificate file location defaults to the working directory, but can be overridden by specifying ssl.
         |
         | 'ssl' key is only included in the return dictionary if ssl is specified.
+        |
+        | Requires boto3 to be installed. Will raise ImportError if not installed.
 
         :param string hostname: URL where db is hosted.
         :param string username: Username to login with.
@@ -383,6 +452,8 @@ class PyFlickerConnectionMySQL(PyFlickerConnectionBase):
         | Schema name is also defined in the Glue Connector itself, but can be overridden by specifying override_schema_name.
         |
         | 'ssl' key is only included in the return dictionary if ssl is specified.
+        |
+        | Requires boto3 to be installed. Will raise ImportError if not installed.
 
         :param string glue_connector_name: Name of AWS Glue Connector containing login details.
         :param string ssl: Path to SSL certificate file, or None.
@@ -442,7 +513,7 @@ class PyFlickerConnectionMySQL(PyFlickerConnectionBase):
                 passwd=conn_details["password"],
                 database=conn_details["schema"],
                 ssl=conn_details["ssl"],
-                connect_timeout=PyFlickerConnectionMySQL.DB_LOCK_WAIT_TIMEOUT,
+                connect_timeout=DB_CONNECTION_TIMEOUT,
                 port=int(conn_details["port"])
             )
         elif "ssl" in conn_details and not Path(conn_details["ssl"]["ca"]).is_file():
@@ -453,7 +524,7 @@ class PyFlickerConnectionMySQL(PyFlickerConnectionBase):
                 user=conn_details["username"],
                 passwd=conn_details["password"],
                 database=conn_details["schema"],
-                connect_timeout=PyFlickerConnectionMySQL.DB_LOCK_WAIT_TIMEOUT,
+                connect_timeout=DB_CONNECTION_TIMEOUT,
                 port=int(conn_details["port"])
             )
 
@@ -464,19 +535,18 @@ class PyFlickerMultithreaderMySQL(PyFlickerMultithreaderBase):
     def _execute_thread(self, thread_id: int, query: str) -> None:
         query_size_mb = f"{(len(query) / 2**20):.2f}"
         logger.info(
-            f"[THREAD/{thread_id}] starting with payload of size {query_size_mb} MB. Dirty reads enabled for upsert."
-        )
+            f"[THREAD/{thread_id}] Starting with payload of size {query_size_mb} MB. Dirty reads enabled, lock wait timeout set to {DB_LOCK_WAIT_TIMEOUT} seconds.")
 
-        conn_details = self.conn_details
+        thread_local_conn_details = self.conn_details
         # IAM: need to generate token for each thread, since token may be invalidated by the passage of time
-        if self.conn_type in [PyFlickerDBConnectionType.IAM]:
+        if self.db_connection_type in [PyFlickerDBConnectionTypeMySQL.IAM]:
             try:
-                conn_details = PyFlickerConnectionMySQL.get_conn_details_iam(
-                    hostname=conn_details["hostname"],
-                    username=conn_details["username"],
-                    schema=conn_details["schema"],
-                    port=conn_details["port"],
-                    ssl=conn_details["ssl"]["ca"] if "ssl" in conn_details else None,
+                thread_local_conn_details = PyFlickerConnectionMySQL.get_conn_details_iam(
+                    hostname=thread_local_conn_details["hostname"],
+                    username=thread_local_conn_details["username"],
+                    schema=thread_local_conn_details["schema"],
+                    port=thread_local_conn_details["port"],
+                    ssl=thread_local_conn_details["ssl"]["ca"] if "ssl" in thread_local_conn_details else None,
                 )
             except Exception as e:
                 self._add_exception(f"Failed to get IAM connection details: {e}")
@@ -486,19 +556,16 @@ class PyFlickerMultithreaderMySQL(PyFlickerMultithreaderBase):
         conn = None
         cursor = None
         try:
-            conn = PyFlickerConnectionMySQL.get_conn_object(conn_details)
+            conn = PyFlickerConnectionMySQL.get_conn_object(thread_local_conn_details)
             cursor = conn.cursor()
 
             # disable row level locks
             cursor.execute("SET SESSION TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;")
             # significantly increase lock wait timeout, in case of gap locks
-            cursor.execute(f"""SET SESSION innodb_lock_wait_timeout = {PyFlickerConnectionMySQL.DB_LOCK_WAIT_TIMEOUT};""")
+            cursor.execute(f"""SET SESSION innodb_lock_wait_timeout = {DB_LOCK_WAIT_TIMEOUT};""")
             conn.commit()
 
-            if self.task:
-                cursor.execute(query, self.task)
-            else:
-                cursor.execute(query)
+            cursor.execute(query)
             conn.commit()
 
             logger.info(f"[THREAD/{thread_id}] finished.")

@@ -7,7 +7,7 @@ LOG_FORMAT = "[%(asctime)s] [%(filename)s/%(levelname)s]: %(message)s"
 
 def setup_logger(log_to_folder: Union[Path, None] = None) -> logging.Logger:
     """
-    | Set up custom logging.
+    Set up custom logging.
 
     :param log_to_folder: The folder to write logs to. Default is None.
 

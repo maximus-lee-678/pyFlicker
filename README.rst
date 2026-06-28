@@ -91,8 +91,8 @@ cfg.json
 - **load_batch_size**
 
   - Type: int
-  - Maximum rows inserted per connection.
-  - Default 10000.
+  - Maximum rows upserted per connection.
+  - Default 20000.
 
 Notes
 -----

@@ -1,3 +1,7 @@
+"""
+Example usage of pyFlicker to load CSV files into a database using multithreading.
+"""
+
 import pyflicker
 import logging
 from typing import Any
@@ -68,12 +72,14 @@ def main():
                         maximum_rows_per_thread=cfg["maximum_rows_per_thread"]
                     )
                     db_runner.set_user_supplied_db_details(
-                        pyflicker.PyFlickerDBConnectionType(cfg["auth_type"]),
+                        pyflicker.PyFlickerDBConnectionTypeMySQL(cfg["auth_type"]),
                         pyflicker.PyFlickerLoadConfigMySQL(cfg).get_user_supplied_db_details()
                     )
-                    result = db_runner.start_multithreaded_insert()
+                    result = db_runner.start_multithreaded_upsert()
 
                 case pyflicker.PyFlickerSupportedDBTypes.POSTGRES:
+                    columns_list, values_list = pyflicker.parse_csv_postgres(csv_file)
+
                     raise NotImplementedError("Postgres support is not yet implemented.")
 
                 case _:
