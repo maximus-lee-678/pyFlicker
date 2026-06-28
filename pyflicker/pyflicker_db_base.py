@@ -1,7 +1,41 @@
 from abc import ABC, abstractmethod
+from enum import StrEnum
+import logging
 import threading
 from typing import Any, Union
 import time
+
+
+logger = logging.getLogger("pyflicker.base")
+
+
+class PyFlickerSupportedDBTypes(StrEnum):
+    MYSQL = "MYSQL"
+    POSTGRES = "POSTGRES"
+
+
+class PyFlickerLoadConfigBase(ABC):
+    cfg: dict[str, Any]
+    db_connection_type: Any
+    user_supplied_db_details: Any
+
+    @abstractmethod
+    def __init__(self, cfg: dict[str, Any]):
+        self.cfg = cfg
+        self._load_type()
+        self._produce_user_supplied_db_details()
+
+    @abstractmethod
+    def get_user_supplied_db_details(self) -> Any:
+        return self.user_supplied_db_details
+
+    @abstractmethod
+    def _load_type(self) -> None:
+        raise NotImplementedError("Subclasses must implement this!")
+
+    @abstractmethod
+    def _produce_user_supplied_db_details(self) -> None:
+        raise NotImplementedError("Subclasses must implement this!")
 
 
 class PyFlickerDBUserSuppliedDetailsBase(ABC):
@@ -56,30 +90,6 @@ class PyFlickerConnectionBase(ABC):
         raise NotImplementedError("Subclasses must implement this!")
 
 
-class PyFlickerLoadConfigBase(ABC):
-    cfg: dict[str, Any]
-    db_connection_type: Any
-    user_supplied_db_details: Any
-
-    @abstractmethod
-    def __init__(self, cfg: dict[str, Any]):
-        self.cfg = cfg
-        self._load_type()
-        self._produce_user_supplied_db_details()
-
-    @abstractmethod
-    def get_user_supplied_db_details(self) -> Any:
-        return self.user_supplied_db_details
-
-    @abstractmethod
-    def _load_type(self) -> None:
-        raise NotImplementedError("Subclasses must implement this!")
-
-    @abstractmethod
-    def _produce_user_supplied_db_details(self) -> None:
-        raise NotImplementedError("Subclasses must implement this!")
-
-
 class PyFlickerMultithreaderBase(ABC):
     """
     | Base runner that executes each query in parallel, one connection per thread.
@@ -88,9 +98,8 @@ class PyFlickerMultithreaderBase(ABC):
     """
 
     def __init__(
-        self, logger, maximum_threads: int, conn_details: dict, conn_type: Any, queries: list[str], task: Union[tuple, None]
+        self, maximum_threads: int, conn_details: dict, conn_type: Any, queries: list[str], task: Union[tuple, None]
     ) -> None:
-        self.logger = logger
         self.maximum_threads = maximum_threads
         self.conn_details = conn_details
         self.conn_type = conn_type
@@ -134,8 +143,8 @@ class PyFlickerMultithreaderBase(ABC):
         num_threads_to_run = len(self.queries)
         threads: list[threading.Thread] = []
 
-        self.logger.info("Multithreading function starting.")
-        self.logger.info(f"[MAIN] Starting up to {self.maximum_threads} threads.")
+        logger.info("Multithreading function starting.")
+        logger.info(f"[MAIN] Starting up to {self.maximum_threads} threads.")
 
         while len(threads) != 0 or not has_started:
             for thread in threads[:]:  # iterate over a copy of the list to avoid shooting yourself
@@ -143,7 +152,7 @@ class PyFlickerMultithreaderBase(ABC):
                     threads.remove(thread)
 
             if threads_created < num_threads_to_run and len(threads) < self.maximum_threads:
-                self.logger.debug(f"[MAIN] Threads Active before addition: {len(threads)}")
+                logger.debug(f"[MAIN] Threads Active before addition: {len(threads)}")
 
                 # minimum of how many threads left to create or how much the "buffer" can fit
                 # in this loop, i can be treated as thread id to create and is zero-based
@@ -151,15 +160,15 @@ class PyFlickerMultithreaderBase(ABC):
                     thread = threading.Thread(target=self._execute_thread, args=(i, self.queries[i]))
                     threads.append(thread)
                     thread.start()
-                    self.logger.info(f"[MAIN] Thread ID {threads_created} created.")
+                    logger.info(f"[MAIN] Thread ID {threads_created} created.")
                     threads_created += 1
 
-                self.logger.debug(f"[MAIN] Threads Active after addition: {len(threads)}")
+                logger.debug(f"[MAIN] Threads Active after addition: {len(threads)}")
                 displayed_active_thread_count = len(threads)
 
             elif displayed_active_thread_count != len(threads):
                 # only show updates if there's changes
-                self.logger.debug(f"[MAIN] Threads Currently Active: {len(threads)}")
+                logger.debug(f"[MAIN] Threads Currently Active: {len(threads)}")
                 displayed_active_thread_count = len(threads)
 
             if not has_started:
@@ -172,11 +181,11 @@ class PyFlickerMultithreaderBase(ABC):
     def _build_result(self) -> dict[str, Any]:
         exceptions = self.exceptions
         if exceptions:
-            self.logger.error(f"[MAIN] [ERROR] Exceptions were raised by {len(exceptions)} threads! All Exceptions:")
+            logger.error(f"[MAIN] [ERROR] Exceptions were raised by {len(exceptions)} threads! All Exceptions:")
             for i, exception in enumerate(exceptions):
-                self.logger.error(f"[MAIN] Exception {i}: {exception}")
-            self.logger.info("Multithreading function finished.")
+                logger.error(f"[MAIN] Exception {i}: {exception}")
+            logger.info("Multithreading function finished.")
             return {"transaction_successful": False, "exception": exceptions}
 
-        self.logger.info("Multithreading function finished.")
+        logger.info("Multithreading function finished.")
         return {"transaction_successful": True, "rows_affected": self.row_count}

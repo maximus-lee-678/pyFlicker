@@ -1,16 +1,10 @@
+import pyflicker
+import logging
 from typing import Any
-
-from utils import pyflicker_logger
 import os
 from datetime import datetime
 from pathlib import Path
 import json
-from enum import StrEnum
-
-
-class SupportedDBTypes(StrEnum):
-    MYSQL = "MYSQL"
-    POSTGRES = "POSTGRES"
 
 
 PATH_CFG = Path("cfg.json")
@@ -19,14 +13,17 @@ PATH_LOAD_FILES = Path("./to_load")
 # force working directory to script's location
 os.chdir(Path(__file__).parent)
 
-logger = pyflicker_logger.setup_logger(logger_name="pyflicker", log_to_file=True)
+logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger(__name__)
 
 
 def main():
+    pyflicker.setup_logger(Path("logs"))
+
     time_start = datetime.now()
     script_name = Path(__file__).name
 
-    logger.info("pyflicker started.")
+    logger.info(f"{script_name} started.")
 
     PATH_LOAD_FILES.mkdir(parents=True, exist_ok=True)
     if not PATH_CFG.exists():
@@ -38,8 +35,8 @@ def main():
     with open(PATH_CFG, "r") as cfg_file:
         cfg = json.load(cfg_file)
 
-    if "db_type" not in cfg or cfg["db_type"] not in SupportedDBTypes.__members__:
-        str_error = f"Invalid or missing db_type in configuration file. Supported types: {list(SupportedDBTypes)}"
+    if "db_type" not in cfg or cfg["db_type"] not in pyflicker.PyFlickerSupportedDBTypes.__members__:
+        str_error = f"Invalid or missing db_type in configuration file. Supported types: {list(pyflicker.PyFlickerSupportedDBTypes)}"
         logger.error(str_error)
         raise ValueError(str_error)
 
@@ -62,7 +59,8 @@ def main():
             for line in f:
                 if not header_read:
                     # currently formatted like (col1,col2,col3,...)
-                    columns_list = [col.strip().lower() for col in line.strip("()").split(",")]
+                    columns_list = [col.strip().lower() for col in line.strip("\n()").split(",")]
+                    logger.info(f"Columns for table {table_name}: {columns_list}")
                     header_read = True
                 else:
                     values_list.append(line.strip())
@@ -70,10 +68,9 @@ def main():
         result: dict[str, Any] = {}
         try:
             match cfg["db_type"]:
-                case SupportedDBTypes.MYSQL:
-                    from utils import pyflicker_db_mysql
-                    user_supplied_db_details = pyflicker_db_mysql.PyFlickerLoadConfigMySQL(cfg).get_user_supplied_db_details()
-                    db_runner = pyflicker_db_mysql.PyFlickerRunMySQL(
+                case pyflicker.PyFlickerSupportedDBTypes.MYSQL:
+                    user_supplied_db_details = pyflicker.PyFlickerLoadConfigMySQL(cfg).get_user_supplied_db_details()
+                    db_runner = pyflicker.PyFlickerRunMySQL(
                         table_name=table_name,
                         columns_list=columns_list,
                         values_list=values_list,
@@ -81,17 +78,17 @@ def main():
                         maximum_rows_per_thread=cfg["maximum_rows_per_thread"]
                     )
                     db_runner.set_user_supplied_db_details(
-                        pyflicker_db_mysql.PyFlickerDBConnectionType(cfg["auth_type"]),
+                        pyflicker.PyFlickerDBConnectionType(cfg["auth_type"]),
                         user_supplied_db_details
                     )
                     result = db_runner.start_multithreaded_insert()
 
-                case SupportedDBTypes.POSTGRES:
+                case pyflicker.PyFlickerSupportedDBTypes.POSTGRES:
                     raise NotImplementedError("Postgres support is not yet implemented.")
 
                 case _:
                     raise ValueError(f"""Invalid db_type: {cfg["db_type"]}. \
-Supported types: {list(SupportedDBTypes)}""")
+Supported types: {list(pyflicker.PyFlickerSupportedDBTypes)}""")
 
         except Exception as e:
             logger.error(f"Error processing file {txt_file}: {e}")

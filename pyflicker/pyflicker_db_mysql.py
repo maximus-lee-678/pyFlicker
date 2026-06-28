@@ -1,6 +1,5 @@
-from utils.pyflicker_db_base import PyFlickerConnectionBase, PyFlickerMultithreaderBase, PyFlickerRunBase, PyFlickerDBUserSuppliedDetailsBase
-import utils.pyflicker_distribute as pyflicker_distribute
-import boto3
+from pyflicker.pyflicker_db_base import PyFlickerConnectionBase, PyFlickerLoadConfigBase, PyFlickerMultithreaderBase, PyFlickerRunBase, PyFlickerDBUserSuppliedDetailsBase
+import pyflicker.pyflicker_distribute as pyflicker_distribute
 import logging
 from pathlib import Path
 from enum import StrEnum
@@ -59,7 +58,7 @@ class PyFlickerUserSuppliedDBDetailsMySQLGlueConn(PyFlickerDBUserSuppliedDetails
         self.ssl = ssl
 
 
-class PyFlickerLoadConfigMySQL:
+class PyFlickerLoadConfigMySQL(PyFlickerLoadConfigBase):
     cfg: dict[str, Any]
     db_connection_type: PyFlickerDBConnectionType
     user_supplied_db_details: Union[
@@ -69,9 +68,7 @@ class PyFlickerLoadConfigMySQL:
     ]
 
     def __init__(self, cfg: dict[str, Any]):
-        self.cfg = cfg
-        self._load_type()
-        self._produce_user_supplied_db_details()
+        super().__init__(cfg)
 
     def get_user_supplied_db_details(self) -> Union[
         PyFlickerUserSuppliedDBDetailsMySQLPassword,
@@ -124,7 +121,7 @@ Supported types: {list(PyFlickerDBConnectionType)}")
 
 
 class PyFlickerRunMySQL(PyFlickerRunBase):
-    BASE_QUERY = "INSERT INTO {table_name} ({final_cols_string}) VALUES {values_strings} AS alias ON DUPLICATE KEY UPDATE {update_keys};"
+    BASE_QUERY = "INSERT INTO {table_name} ({final_cols_string}) VALUES {values_strings} ON DUPLICATE KEY UPDATE {update_keys};"
 
     user_supplied_db_details: Union[
         PyFlickerUserSuppliedDBDetailsMySQLPassword,
@@ -164,30 +161,33 @@ class PyFlickerRunMySQL(PyFlickerRunBase):
             raise ValueError("Invalid user supplied db details for the specified connection type.")
 
     def start_multithreaded_insert(self) -> dict[str, Any]:
+        logger.info(f"Starting multithreaded insert into table {self.table_name} with {len(self.values_list)} rows.")
+
         self._instantiate_conn_details()
         conn = PyFlickerConnectionMySQL.get_conn_object(self.conn_details)
         db_column_names = self._get_column_names(conn)
         db_primary_keys = self._get_primary_keys(conn)
         conn.close()
+        logger.info(f"Retrieved column names and primary keys.")
 
         if not self._verify_columns_match(db_column_names, self.columns_list):
-            raise ValueError(
-                f"Column names in the database ({db_column_names}) do not match column names in the file ({self.columns_list})."
-            )
+            err_msg = f"Column names in the database ({db_column_names}) do not match column names in the file ({self.columns_list})."
+            logger.error(err_msg)
+            raise ValueError(err_msg)
 
         formatted_query = self.BASE_QUERY.format(
             table_name=self.table_name,
             final_cols_string=",".join(self.columns_list),  # use the file column ordering
             values_strings="{values_strings}",
             update_keys=",".join(
-                [f"{col}=alias.{col}" for col in db_column_names if col not in db_primary_keys]
+                [f"{col}=VALUES({col})" for col in db_column_names if col not in db_primary_keys]
             )
         )
         plan_numbers = pyflicker_distribute.get_even_plan(len(self.values_list), self.maximum_threads, self.maximum_rows_per_thread)
+        logger.info(f"Query plan: {plan_numbers}")
         queries = pyflicker_distribute.form_query_list_from_plan(plan_numbers, formatted_query, self.values_list)
 
         multi_threader = PyFlickerMultithreaderMySQL(
-            logger=logger,
             maximum_threads=self.maximum_threads,
             conn_details=self.conn_details,
             conn_type=self.db_connection_type,
@@ -195,7 +195,6 @@ class PyFlickerRunMySQL(PyFlickerRunBase):
             task=None
         )
         return multi_threader.run()
-
 
     def _instantiate_conn_details(self) -> None:
         if self.db_connection_type == PyFlickerDBConnectionType.PASSWORD and \
@@ -354,6 +353,8 @@ class PyFlickerConnectionMySQL(PyFlickerConnectionBase):
         }
         """
 
+        import boto3
+
         rds_client = boto3.client("rds")
         auth_token = rds_client.generate_db_auth_token(
             DBHostname=hostname,
@@ -396,6 +397,8 @@ class PyFlickerConnectionMySQL(PyFlickerConnectionBase):
             'schema': string
         }
         """
+
+        import boto3
 
         # retrieve Glue credentials
         glue_client = boto3.client("glue")
@@ -459,7 +462,7 @@ class PyFlickerConnectionMySQL(PyFlickerConnectionBase):
 class PyFlickerMultithreaderMySQL(PyFlickerMultithreaderBase):
     def _execute_thread(self, thread_id: int, query: str) -> None:
         query_size_mb = f"{(len(query) / 2**20):.2f}"
-        self.logger.info(
+        logger.info(
             f"[THREAD/{thread_id}] starting with payload of size {query_size_mb} MB. Dirty reads enabled for upsert."
         )
 
@@ -476,7 +479,7 @@ class PyFlickerMultithreaderMySQL(PyFlickerMultithreaderBase):
                 )
             except Exception as e:
                 self._add_exception(f"Failed to get IAM connection details: {e}")
-                self.logger.error(f"[THREAD/{thread_id}] failed with Error {e}!")
+                logger.error(f"[THREAD/{thread_id}] failed with Error {e}!")
                 return
 
         conn = None
@@ -497,20 +500,20 @@ class PyFlickerMultithreaderMySQL(PyFlickerMultithreaderBase):
                 cursor.execute(query)
             conn.commit()
 
-            self.logger.info(f"[THREAD/{thread_id}] finished.")
+            logger.info(f"[THREAD/{thread_id}] finished.")
             self._add_rows(cursor.rowcount)
 
         except pymysql.Error as e:
             self._add_exception("Caught MySQL Error %d: %s" % (e.args[0], e.args[1]))
-            self.logger.error(f"[THREAD/{thread_id}] failed with Error {e.args[0]}!")
+            logger.error(f"[THREAD/{thread_id}] failed with Error {e.args[0]}!")
 
         except Exception as e:
             self._add_exception(f"Caught {e.__class__.__name__} Exception: {e}")
-            self.logger.error(f"[THREAD/{thread_id}] failed with Error {e}!")
+            logger.error(f"[THREAD/{thread_id}] failed with Error {e}!")
 
         finally:
             if cursor:
                 cursor.close()
             if conn:
                 conn.close()
-            self.logger.info(f"[THREAD/{thread_id}] shutting down.")
+            logger.info(f"[THREAD/{thread_id}] shutting down.")

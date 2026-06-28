@@ -1,23 +1,20 @@
 import logging
 from datetime import datetime
 from pathlib import Path
-
-LOG_DIRECTORY = Path("logs")
-LOG_NAME = Path(f"""{LOG_DIRECTORY}/{datetime.now().strftime("%Y-%m-%d_%H-%M-%S")}.log""")
+from typing import Union
 
 LOG_FORMAT = "[%(asctime)s] [%(filename)s/%(levelname)s]: %(message)s"
 
-def setup_logger(logger_name: str, log_to_file: bool = False) -> logging.Logger:
+def setup_logger(log_to_folder: Union[Path, None] = None) -> logging.Logger:
     """
     | Set up custom logging.
 
-    :param logger_name: The name of the logger.
-    :param log_to_file: Whether to write logs to a file. Default is False.
+    :param log_to_folder: The folder to write logs to. Default is None.
 
     :return: Configured Logger instance.
     """
 
-    logger = logging.getLogger(logger_name)
+    logger = logging.getLogger("pyflicker")
     logger.setLevel(logging.DEBUG)
     logger.propagate = False
 
@@ -33,8 +30,9 @@ def setup_logger(logger_name: str, log_to_file: bool = False) -> logging.Logger:
     console_handler.setFormatter(formatter)
     logger.addHandler(console_handler)
 
-    if log_to_file:
-        LOG_DIRECTORY.mkdir(parents=True, exist_ok=True)
+    if log_to_folder:
+        LOG_NAME = Path(f"""{log_to_folder}/{datetime.now().strftime("%Y-%m-%d_%H-%M-%S")}.log""")
+        log_to_folder.mkdir(parents=True, exist_ok=True)
         file_handler = logging.FileHandler(LOG_NAME, "a", encoding="utf-8")
         file_handler.setLevel(logging.INFO)
         file_handler.setFormatter(formatter)
